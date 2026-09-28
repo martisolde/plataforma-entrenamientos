@@ -1,126 +1,103 @@
-# Auto-DM de Instagram por comentarios (sin ManyChat)
+# AutoDM: tu propio ManyChat para Instagram
 
-Cuando alguien comenta una palabra clave (p. ej. `PLAN`) en tus publicaciones o reels, este servidor le
-envía automáticamente un **mensaje directo** y, opcionalmente, responde al comentario en público
-("¡Te lo he enviado por DM!"). Es lo mismo que hace ManyChat, pero usando directamente la
-**API oficial de Instagram**, que es gratuita.
+Aplicación web para automatizar DMs de Instagram a partir de comentarios, sin pagar ManyChat:
 
-Sin dependencias: solo Node.js ≥ 20.12.
+1. **Entras con tu cuenta de Instagram** (login oficial de Meta).
+2. **Eliges un reel o publicación** de tu cuenta (o todas) desde una cuadrícula con tus vídeos.
+3. Defines **palabras clave** (`PLAN`, `RUTINA`…) o "cualquier comentario".
+4. Cuando alguien comenta, la app:
+   - **responde en público** al comentario (con varias frases al azar para no parecer spam),
+   - le envía un **DM de apertura con botón** ("Envíamelo"),
+   - opcionalmente **comprueba si te sigue** y, si no, le pide que te siga,
+   - le envía el **mensaje final con el enlace** en un botón.
+5. Ves **estadísticas** (comentarios, DMs, clics en el botón, clics en el enlace y %) y un **registro de actividad**.
 
-## Cómo funciona
+Usa la **API oficial de Instagram**, que es gratuita. No tiene dependencias: solo necesitas Node.js ≥ 22.13
+(la base de datos es SQLite, incluida en Node).
 
-1. Meta envía un *webhook* a tu servidor cada vez que alguien comenta.
-2. El servidor busca una regla cuya palabra clave aparezca en el comentario (`rules.json`).
-3. Envía una **private reply** (DM al autor del comentario) con el texto de la regla.
-4. Responde en público al comentario con uno de los textos de `publicReplies`.
-
-Límites de Instagram a tener en cuenta:
-
-- Solo se puede enviar **un DM por comentario** y dentro de los **7 días** siguientes al comentario.
-- Tu cuenta tiene que ser **profesional** (Creador o Empresa).
-- El DM llega a la bandeja de "Solicitudes" del usuario si no te sigue / no habéis hablado antes (igual que con ManyChat).
-
-## 1. Requisitos previos
-
-- Cuenta de Instagram **profesional** (Configuración → Tipo de cuenta → Cambiar a cuenta profesional).
-- En la app de Instagram: Configuración → Mensajes y respuestas a historias → Controles de mensajes →
-  **Herramientas conectadas → Permitir acceso a los mensajes**: activado.
-- Una cuenta en [developers.facebook.com](https://developers.facebook.com).
-
-## 2. Crear la app en Meta
-
-1. **My Apps → Create app** → caso de uso **"Manage messaging & content on Instagram"** → tipo *Business*.
-2. En el panel: **Instagram → API setup with Instagram login**.
-3. Copia el **Instagram app secret** → será `APP_SECRET`.
-4. En *Generate access tokens* pulsa **Add account**, inicia sesión con tu cuenta de Instagram y
-   **Generate token**. Copia el token (empieza por `IG...`) → será `IG_ACCESS_TOKEN`.
-   Es un token de larga duración (60 días), ver [renovar el token](#renovar-el-token).
-5. Permisos que necesita la app: `instagram_business_basic`, `instagram_business_manage_messages`,
-   `instagram_business_manage_comments`.
-
-## 3. Desplegar el servidor
-
-Necesitas una URL pública con HTTPS. Opciones gratuitas o baratas: Render, Railway, Fly.io, un VPS…
-Para probar en local puedes usar `ngrok http 3000` o `cloudflared tunnel --url http://localhost:3000`.
+## Arrancar en local
 
 ```bash
-cp .env.example .env            # rellena VERIFY_TOKEN, APP_SECRET e IG_ACCESS_TOKEN
-cp rules.example.json rules.json  # pon tus palabras clave y mensajes
-npm start
+cp .env.example .env      # rellena los valores (ver abajo)
+npm start                 # http://localhost:3000
+npm test                  # tests
 ```
 
-En plataformas como Render/Railway define las mismas variables de entorno en su panel en vez de usar `.env`.
-Si el disco no es persistente, `data/` (el registro de comentarios ya respondidos) se pierde al reiniciar;
-no es grave, porque Instagram no permite dos DMs al mismo comentario.
+## 1. Requisitos en Instagram
 
-## 4. Configurar el webhook en Meta
+- Cuenta **profesional** (Creador o Empresa): Configuración → Tipo de cuenta.
+- Configuración → Mensajes y respuestas a historias → Controles de mensajes → Herramientas conectadas →
+  **Permitir acceso a los mensajes**: activado.
 
-1. Panel de la app → **Instagram → API setup with Instagram login → Configure webhooks**.
-2. **Callback URL**: `https://TU-DOMINIO/webhook`
-3. **Verify token**: el mismo valor que pusiste en `VERIFY_TOKEN`. Pulsa *Verify and save*.
-4. Suscríbete al campo **`comments`** (y `live_comments` si haces directos).
-5. En *Generate access tokens*, activa **Webhook subscription** para tu cuenta.
+## 2. Crear la app en Meta (gratis)
 
-## 5. Modo de pruebas vs. modo publicado
+1. En [developers.facebook.com](https://developers.facebook.com) → **My Apps → Create app** → caso de uso
+   **"Manage messaging & content on Instagram"**.
+2. Panel → **Instagram → API setup with Instagram login**:
+   - Copia **Instagram app ID** → `IG_APP_ID` e **Instagram app secret** → `IG_APP_SECRET`.
+   - En **Set up Instagram business login → Business login settings**, añade como *OAuth redirect URI*:
+     `https://TU-DOMINIO/auth/callback`
+   - Rellena también *Deauthorize callback URL*: `https://TU-DOMINIO/auth/deauthorize`
+     y *Data deletion request URL*: `https://TU-DOMINIO/auth/data-deletion`.
+3. **Configure webhooks**:
+   - Callback URL: `https://TU-DOMINIO/webhook`
+   - Verify token: el mismo que pongas en `VERIFY_TOKEN`.
+   - Suscríbete a los campos **`comments`**, **`messages`** y **`messaging_postbacks`**.
+4. En *App settings → Basic*, pon como URL de política de privacidad `https://TU-DOMINIO/privacy.html`
+   (la app ya incluye una página).
 
-Mientras la app esté en **modo desarrollo**, solo funciona con cuentas que tengan un rol en la app
-(App roles → añade tu cuenta de Instagram de prueba como *Instagram Tester* y acepta la invitación en
-Instagram → Configuración → Apps y sitios web).
+## 3. Desplegar
 
-Para que funcione con **cualquier seguidor**, tienes que:
+Necesitas una URL pública con **HTTPS**: Render, Railway, Fly.io, un VPS… Para probar en local:
+`cloudflared tunnel --url http://localhost:3000` o `ngrok http 3000`, y usa esa URL como `BASE_URL`.
 
-1. Poner la app en modo **Live** (requiere URL de política de privacidad).
-2. Pedir **Advanced Access** para `instagram_business_manage_messages` e
-   `instagram_business_manage_comments` en *App Review* (grabas un vídeo corto enseñando cómo funciona).
-   Para cuentas propias normalmente también hay que completar la *Business verification*.
+Variables de entorno (`.env.example`):
 
-Es un trámite de una vez; no tiene coste.
-
-## Reglas (`rules.json`)
-
-```json
-{
-  "publicReplies": ["¡Te lo acabo de enviar por DM, {username}! 📩", "¡Revisa tus mensajes! 💪"],
-  "rules": [
-    {
-      "name": "plan-gratis",
-      "keywords": ["PLAN", "RUTINA"],
-      "match": "word",
-      "mediaIds": [],
-      "dm": "¡Hola {username}! Aquí tienes el plan: https://tu-web.com/plan"
-    }
-  ]
-}
-```
-
-| Campo | Descripción |
+| Variable | Qué es |
 |---|---|
-| `keywords` | Palabras que activan la regla. Da igual mayúsculas o tildes. |
-| `match` | `word` (por defecto): la palabra aparece suelta en el comentario. `exact`: el comentario es solo esa palabra. `contains`: aparece en cualquier parte, aunque sea dentro de otra palabra. |
-| `mediaIds` | Limita la regla a publicaciones concretas (IDs de media). Vacío = todas. |
-| `dm` | Texto del mensaje directo. `{username}` se sustituye por `@usuario`. |
-| `publicReply` | Opcional. Texto (o lista de textos) para responder en público. `false` para no responder. Si no se pone, se usa uno al azar de `publicReplies`. |
+| `BASE_URL` | URL pública, p. ej. `https://autodm.tudominio.com` |
+| `IG_APP_ID` / `IG_APP_SECRET` | De la app de Meta |
+| `VERIFY_TOKEN` | Cadena que inventas para verificar el webhook |
+| `SESSION_SECRET` | 32+ caracteres aleatorios; cifra los tokens guardados |
+| `DATABASE_PATH` | Fichero SQLite (por defecto `data/app.db`). **Tiene que estar en un disco persistente.** |
 
-Las reglas se aplican en orden (gana la primera que coincide) y se recargan en cada comentario, así que
-puedes editar `rules.json` sin reiniciar.
+## 4. Modo desarrollo → Live
 
-Para saber el ID de una publicación, pon `DRY_RUN=true`, comenta en ella y míralo en los logs, o consulta
-`https://graph.instagram.com/v23.0/me/media?fields=id,caption,permalink&access_token=TU_TOKEN`.
+Mientras la app está en **modo desarrollo** solo funciona con cuentas que tengan un rol en la app
+(App roles → añade tu Instagram como *Instagram Tester* y acepta la invitación en Instagram →
+Configuración → Apps y sitios web). Así puedes probar todo con tu cuenta.
 
-## Renovar el token
+Para que funcione con **cualquier persona que comente**:
 
-El token caduca a los 60 días. Renuévalo al menos una vez al mes:
+1. Pide **Advanced Access** a `instagram_business_manage_messages` e `instagram_business_manage_comments`
+   en *App Review* (hay que grabar un vídeo corto enseñando el flujo).
+2. Completa la *Business verification* si te la pide.
+3. Pasa la app a **Live**.
 
-```bash
-npm run refresh-token
-```
+Es un trámite de una vez y no cuesta dinero.
 
-y copia el nuevo valor en `IG_ACCESS_TOKEN`.
+## Cómo funciona por dentro
 
-## Probar sin enviar nada
+| Pieza | Fichero |
+|---|---|
+| Servidor HTTP, rutas y API del panel | `src/app.js` |
+| Login OAuth, DMs, comentarios, perfil | `src/instagram.js` |
+| Motor: comentario → respuesta → DM → botón → seguir → enlace | `src/engine.js` |
+| Validación y coincidencia de palabras clave | `src/automations.js` |
+| Base de datos SQLite (tokens cifrados con AES-256-GCM) | `src/db.js` |
+| Renovación automática de tokens (duran 60 días) | `src/jobs.js` |
+| Panel web (sin frameworks) | `public/` |
 
-Con `DRY_RUN=true` el servidor solo escribe en los logs lo que habría enviado.
+Detalles:
 
-```bash
-npm test   # tests unitarios
-```
+- Los enlaces pasan por `BASE_URL/r/<id>` para contar clics y después redirigen a tu URL.
+- Si Instagram rechazara el mensaje con botón, se envía el enlace como texto.
+- Cada comentario recibe como máximo un DM (Meta a veces repite webhooks).
+- Las automatizaciones de un post concreto tienen prioridad sobre las de "cualquier publicación".
+
+## Límites de Instagram
+
+- Solo se puede enviar **un DM por comentario** y dentro de los **7 días** siguientes.
+- Tras pulsar el botón hay una ventana de **24 h** para seguir escribiendo a esa persona.
+- Si la persona no te sigue, el DM le llega a "Solicitudes" (igual que con ManyChat).
+- Los comentarios de tu propia cuenta se ignoran.

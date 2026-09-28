@@ -1,17 +1,16 @@
 {
   "name": "plataforma-entrenamientos",
   "version": "1.0.0",
-  "description": "Auto-DM de Instagram: responde por mensaje directo a quien comenta una palabra clave (sin ManyChat).",
+  "description": "Clon de ManyChat para Instagram: entra con tu cuenta, elige un post o reel y envía DMs automáticos a quien comente.",
   "type": "module",
   "main": "src/server.js",
   "engines": {
-    "node": ">=20.12"
+    "node": ">=22.13"
   },
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
-    "test": "node --test",
-    "refresh-token": "node src/refresh-token.js"
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch src/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test"
   },
   "license": "UNLICENSED",
   "private": true
